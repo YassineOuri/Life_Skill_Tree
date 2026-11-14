@@ -43,14 +43,16 @@ function layoutCategory(category, nodes, variant, categoryNames) {
 
     const ownIds = new Set(own.map(n => n.id))
     const byId = new Map(own.map(n => [n.id, n]))
-    const edge = (source, n, lit) => {
-        g.setEdge(source, skillId(n.id))
+    // Edges point downwards, from a skill to what it requires: goals sit right under the hub,
+    // their prerequisites below them. `upper` is a node id, `lower` the skill it leads down to.
+    const edge = (upper, lower, lit, animated) => {
+        g.setEdge(upper, skillId(lower.id))
         return {
-            id: `e-${source}-${n.id}`,
-            source,
-            target: skillId(n.id),
+            id: `e-${upper}-${lower.id}`,
+            source: upper,
+            target: skillId(lower.id),
             type: 'step',
-            animated: lit && n.status === 'in_progress',
+            animated: lit && animated,
             style: lit
                 ? { stroke: category.color, strokeWidth: 3, filter: `drop-shadow(0 0 5px ${category.color})` }
                 : { stroke: 'var(--color-ink-600)', strokeWidth: 2, strokeDasharray: '2 6', strokeLinecap: 'round' },
@@ -58,12 +60,16 @@ function layoutCategory(category, nodes, variant, categoryNames) {
     }
 
     // One edge per same-category prerequisite, lit once that prerequisite is completed.
-    // Skills without one hang off the hub (they may still wait on another category).
-    const edges = own.flatMap(n => {
-        const prerequisites = n.prerequisite_ids.filter(id => ownIds.has(id))
-        if (!prerequisites.length) return [edge(hubId(category.id), n, !n.locked)]
-        return prerequisites.map(id => edge(skillId(id), n, byId.get(id).status === 'completed'))
-    })
+    // Skills nothing else in the category requires (the goals) hang off the hub.
+    const required = new Set(own.flatMap(n => n.prerequisite_ids.filter(id => ownIds.has(id))))
+    const edges = [
+        ...own.filter(n => !required.has(n.id)).map(n => edge(hubId(category.id), n, !n.locked, n.status === 'in_progress')),
+        ...own.flatMap(n =>
+            n.prerequisite_ids
+                .filter(id => ownIds.has(id))
+                .map(id => edge(skillId(n.id), byId.get(id), byId.get(id).status === 'completed', n.status === 'in_progress')),
+        ),
+    ]
 
     dagre.layout(g)
 
@@ -107,8 +113,9 @@ function crossEdges(nodes, visibleIds) {
                     const lit = byId.get(id).status === 'completed'
                     return {
                         id: `x-${id}-${n.id}`,
-                        source: skillId(id),
-                        target: skillId(n.id),
+                        // Same direction as in-category edges: from the skill down to its prerequisite.
+                        source: skillId(n.id),
+                        target: skillId(id),
                         type: 'default',
                         zIndex: 1,
                         animated: lit && n.status === 'in_progress',
