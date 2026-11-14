@@ -1,0 +1,217 @@
+@import 'tailwindcss';
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+@source '../**/*.blade.php';
+@source '../**/*.js';
+@source '../**/*.jsx';
+
+@theme {
+    --font-sans: 'Rajdhani', ui-sans-serif, system-ui, sans-serif;
+    --font-display: 'Cinzel', ui-serif, Georgia, serif;
+
+    --color-gold-200: #f7e7b4;
+    --color-gold-300: #eed58a;
+    --color-gold-400: #dcb85c;
+    --color-gold-500: #c49a32;
+    --color-gold-600: #9a7724;
+    --color-gold-700: #6b5218;
+
+    /* "ink" = surfaces (dark → light), "parchment" = text. Swapped by the parchment theme below. */
+    --color-ink-950: #090806;
+    --color-ink-900: #12100c;
+    --color-ink-850: #18150f;
+    --color-ink-800: #201c15;
+    --color-ink-700: #2e281e;
+    --color-ink-600: #423a2c;
+
+    --color-parchment: #e9dfc6;
+    --color-parchment-dim: #a89c80;
+}
+
+/* ---- Theme tokens that are not Tailwind colours ------------------------------------------ */
+
+:root {
+    --medal-shade: #090806; /* outer stop of coloured medallions */
+    --on-gold: #1a1208; /* text/icons on gold metal */
+    --danger-frame: #7f1d1d;
+    --danger-face: #1a0d0b;
+    --danger-text: #fca5a5;
+    --text-gold-gradient: linear-gradient(180deg, #f7e7b4 0%, #dcb85c 50%, #9a7724 100%);
+    --metal-dark: linear-gradient(160deg, #4a4132 0%, #2e281e 45%, #18150f 100%);
+    --stone: radial-gradient(circle at 30% 20%, rgb(255 240 200 / 0.05), transparent 60%), linear-gradient(180deg, #1d1912 0%, #110f0b 100%);
+    --canvas: radial-gradient(ellipse at 50% 40%, rgb(196 154 50 / 0.07), transparent 60%), radial-gradient(ellipse at center, #15120d 0%, #090806 75%);
+}
+
+/* Crusader Kings-style parchment */
+[data-theme='parchment'] {
+    --color-ink-950: #f3ead2;
+    --color-ink-900: #ebdfc1;
+    --color-ink-850: #e3d5b3;
+    --color-ink-800: #d8c79f;
+    --color-ink-700: #bba57a;
+    --color-ink-600: #8c7650;
+
+    --color-parchment: #2b1d0e;
+    --color-parchment-dim: #6a5434;
+
+    --color-gold-300: #8a6414;
+    --color-gold-400: #7a5710;
+    --color-gold-500: #8f6a1a;
+    --color-gold-600: #7a5a16;
+
+    --medal-shade: #4a3518;
+    --on-gold: #1a1208;
+    --danger-frame: #991b1b;
+    --danger-face: #f6dcd2;
+    --danger-text: #8b1a1a;
+    --text-gold-gradient: linear-gradient(180deg, #8a6414 0%, #5c3f0b 60%, #3d2906 100%);
+    --metal-dark: linear-gradient(160deg, #8c7650 0%, #6a5434 50%, #4a3a22 100%);
+    --stone:
+        radial-gradient(circle at 25% 15%, rgb(255 255 255 / 0.35), transparent 55%),
+        radial-gradient(circle at 80% 90%, rgb(120 80 30 / 0.12), transparent 50%),
+        linear-gradient(180deg, #f1e6c9 0%, #e2d2ab 100%);
+    --canvas:
+        radial-gradient(ellipse at center, transparent 45%, rgb(90 60 20 / 0.35) 100%),
+        radial-gradient(circle at 20% 30%, rgb(255 255 255 / 0.4), transparent 40%),
+        radial-gradient(circle at 75% 70%, rgb(150 110 50 / 0.12), transparent 45%),
+        linear-gradient(180deg, #efe3c4, #e2d1a6);
+}
+
+/* ---- Polygon shapes ---------------------------------------------------------------------- */
+
+/* Card with cut corners; --c sets the cut size. */
+.chamfer {
+    --c: 10px;
+    clip-path: polygon(
+        var(--c) 0, calc(100% - var(--c)) 0, 100% var(--c), 100% calc(100% - var(--c)),
+        calc(100% - var(--c)) 100%, var(--c) 100%, 0 calc(100% - var(--c)), 0 var(--c)
+    );
+}
+
+.hex {
+    clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+}
+
+.diamond {
+    clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+}
+
+/* ---- Materials --------------------------------------------------------------------------- */
+
+.metal-gold {
+    background: linear-gradient(160deg, #f7e7b4 0%, #c49a32 35%, #6b5218 55%, #dcb85c 75%, #9a7724 100%);
+}
+
+/* Circular ring for medallions (Tomb Raider style) */
+.metal-gold-ring {
+    background: conic-gradient(from 210deg, #f7e7b4, #c49a32, #6b5218, #dcb85c, #9a7724, #f7e7b4, #c49a32, #6b5218, #f7e7b4);
+}
+
+.metal-dark {
+    background: var(--metal-dark);
+}
+
+.stone {
+    background: var(--stone);
+}
+
+.text-gold {
+    background: var(--text-gold-gradient);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+
+.game-canvas {
+    background: var(--canvas);
+}
+
+/* Ornamental divider: ——◆—— */
+.ornament {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+.ornament::before,
+.ornament::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--color-gold-600), transparent);
+}
+
+/* ---- Animations -------------------------------------------------------------------------- */
+
+@keyframes ember {
+    0%, 100% { filter: drop-shadow(0 0 3px var(--glow)) drop-shadow(0 0 1px var(--glow)); }
+    50% { filter: drop-shadow(0 0 14px var(--glow)) drop-shadow(0 0 4px var(--glow)); }
+}
+.ember {
+    animation: ember 2.2s ease-in-out infinite;
+}
+
+/* Unlock / mastery burst: expanding ring, light rays and a pop of the node itself. */
+@keyframes burst-ring {
+    0% { transform: translate(-50%, -50%) scale(0.3); opacity: 1; }
+    100% { transform: translate(-50%, -50%) scale(2.6); opacity: 0; }
+}
+@keyframes burst-rays {
+    0% { transform: translate(-50%, -50%) scale(0.4) rotate(0deg); opacity: 0.9; }
+    100% { transform: translate(-50%, -50%) scale(2.2) rotate(40deg); opacity: 0; }
+}
+@keyframes burst-pop {
+    0% { transform: scale(1); }
+    30% { transform: scale(1.12); }
+    60% { transform: scale(0.97); }
+    100% { transform: scale(1); }
+}
+.burst-pop {
+    animation: burst-pop 0.7s ease-out;
+}
+.burst {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    pointer-events: none;
+    z-index: 10;
+}
+.burst-ring {
+    width: 120px;
+    height: 120px;
+    border-radius: 9999px;
+    border: 3px solid var(--glow);
+    box-shadow: 0 0 24px var(--glow), inset 0 0 24px var(--glow);
+    animation: burst-ring 1s ease-out forwards;
+}
+.burst-ring.delay {
+    animation-delay: 0.15s;
+    opacity: 0;
+}
+.burst-rays {
+    width: 200px;
+    height: 200px;
+    border-radius: 9999px;
+    background: repeating-conic-gradient(from 0deg, var(--glow) 0deg 4deg, transparent 4deg 30deg);
+    mask: radial-gradient(circle, transparent 18%, black 30%, transparent 70%);
+    animation: burst-rays 1s ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ember, .burst-pop, .burst-ring, .burst-rays { animation: none; }
+    .burst { display: none; }
+}
+
+/* ---- React Flow chrome in the same material ---------------------------------------------- */
+
+.react-flow__controls-button {
+    background: var(--color-ink-850) !important;
+    border-color: var(--color-ink-700) !important;
+    fill: var(--color-gold-400) !important;
+}
+.react-flow__controls-button:hover {
+    background: var(--color-ink-700) !important;
+}
+.react-flow__minimap {
+    border: 1px solid var(--color-gold-700);
+}
