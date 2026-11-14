@@ -51,7 +51,7 @@ function layoutCategory(category, nodes, variant, categoryNames) {
             id: `e-${upper}-${lower.id}`,
             source: upper,
             target: skillId(lower.id),
-            type: 'step',
+            type: 'routed',
             animated: lit && animated,
             style: lit
                 ? { stroke: category.color, strokeWidth: 3, filter: `drop-shadow(0 0 5px ${category.color})` }
@@ -65,13 +65,14 @@ function layoutCategory(category, nodes, variant, categoryNames) {
     const edges = [
         ...own.filter(n => !required.has(n.id)).map(n => edge(hubId(category.id), n, !n.locked, n.status === 'in_progress')),
         ...own.flatMap(n =>
-            n.prerequisite_ids
-                .filter(id => ownIds.has(id))
-                .map(id => edge(skillId(n.id), byId.get(id), byId.get(id).status === 'completed', n.status === 'in_progress')),
+            directPrerequisites(n, ownIds, byId).map(id =>
+                edge(skillId(n.id), byId.get(id), byId.get(id).status === 'completed', n.status === 'in_progress'),
+            ),
         ),
     ]
 
     dagre.layout(g)
+    route(g, edges)
 
     const progress = categoryProgress(nodes, category.id)
     const flowNodes = [
@@ -92,6 +93,76 @@ function layoutCategory(category, nodes, variant, categoryNames) {
     return { nodes: flowNodes, edges, width: g.graph().width }
 }
 
+const LANE_SPACING = 8
+
+/**
+ * Store dagre's route on each edge (data.points), so RoutedEdge can follow it instead of
+ * cutting straight through nodes. Dagre gives every edge a point in each gap between rows
+ * ("gap" points) and, for edges skipping rows, points in a column it kept free ("row" points).
+ * Edges from different sources crossing the same gap get their own horizontal lane there,
+ * so their lines never merge into one ambiguous bar.
+ */
+function route(g, edges) {
+    const rowYs = new Set(g.nodes().map(id => Math.round(g.node(id).y)))
+    const routes = edges.map(e => ({
+        edge: e,
+        points: g.edge(e.source, e.target).points.slice(1, -1).map(p => ({ x: p.x, y: p.y, gap: !rowYs.has(Math.round(p.y)) })),
+    }))
+
+    // gap y -> sources crossing it, ordered left to right
+    const gaps = new Map()
+    for (const { edge, points } of routes) {
+        for (const p of points.filter(p => p.gap)) {
+            const key = Math.round(p.y)
+            if (!gaps.has(key)) gaps.set(key, new Map())
+            gaps.get(key).set(edge.source, Math.min(gaps.get(key).get(edge.source) ?? Infinity, g.node(edge.source).x))
+        }
+    }
+    const lanes = new Map(
+        [...gaps].map(([key, sources]) => {
+            const ordered = [...sources].sort((a, b) => a[1] - b[1]).map(([id]) => id)
+            return [key, new Map(ordered.map((id, i) => [id, (i - (ordered.length - 1) / 2) * LANE_SPACING]))]
+        }),
+    )
+
+    for (const { edge, points } of routes) {
+        edge.data = {
+            ...edge.data,
+            points: points.map(p => (p.gap ? { x: p.x, y: p.y + lanes.get(Math.round(p.y)).get(edge.source), gap: true } : p)),
+        }
+    }
+}
+
+/**
+ * Orthogonal SVG path from (sx, sy) down to (tx, ty) through dagre's points: horizontal moves
+ * only happen in gaps between rows, vertical ones in columns dagre kept clear of nodes.
+ */
+export function routedPath(sx, sy, tx, ty, points = []) {
+    const gaps = points.filter(p => p.gap)
+    if (!gaps.length) {
+        const midY = (sy + ty) / 2
+        return `M ${sx} ${sy} V ${midY} H ${tx} V ${ty}`
+    }
+    let d = `M ${sx} ${sy}`
+    points.forEach(p => {
+        if (!p.gap) return (d += ` V ${p.y}`)
+        d += ` V ${p.y} H ${p === gaps.at(-1) ? tx : p.x}`
+    })
+    return `${d} V ${ty}`
+}
+
+/**
+ * Same-category prerequisites of n, minus those already reached through another one: if A
+ * requires B and C, and B requires C, only A→B→C is drawn. The skipped A→C line would run
+ * down past B's row and read as belonging to whatever skill it passes.
+ */
+function directPrerequisites(n, ownIds, byId) {
+    const prerequisites = n.prerequisite_ids.filter(id => ownIds.has(id))
+    const reachable = (from, to, seen = new Set()) =>
+        byId.get(from).prerequisite_ids.some(id => ownIds.has(id) && !seen.has(id) && (seen.add(id), id === to || reachable(id, to, seen)))
+    return prerequisites.filter(id => !prerequisites.some(other => other !== id && reachable(other, id)))
+}
+
 /** Prerequisites of n that live in another category: [{ title, category, completed }]. */
 function externalPrerequisites(n, ownIds, nodes, categoryNames) {
     return n.prerequisite_ids
@@ -101,7 +172,10 @@ function externalPrerequisites(n, ownIds, nodes, categoryNames) {
         .map(p => ({ title: p.title, category: categoryNames.get(p.category_id), completed: p.status === 'completed' }))
 }
 
-/** Gold dashed bezier links between categories, drawn only when both ends are visible. */
+/**
+ * Gold dashed bezier links between categories, built when both ends are visible. They cut
+ * across the other trees, so the page only shows the ones touching the hovered/selected skill.
+ */
 function crossEdges(nodes, visibleIds) {
     const byId = new Map(nodes.map(n => [n.id, n]))
     return nodes
@@ -118,6 +192,7 @@ function crossEdges(nodes, visibleIds) {
                         target: skillId(id),
                         type: 'default',
                         zIndex: 1,
+                        data: { cross: true, ends: [skillId(n.id), skillId(id)] },
                         animated: lit && n.status === 'in_progress',
                         style: lit
                             ? { stroke: '#dcb85c', strokeWidth: 2.5, strokeDasharray: '8 5', filter: 'drop-shadow(0 0 4px #dcb85c)' }
@@ -146,6 +221,7 @@ export function buildGraph(categories, nodes, variant = 'card', allCategories = 
     for (const category of categories) {
         const laid = layoutCategory(category, nodes, variant, categoryNames)
         laid.nodes.forEach(n => (n.position.x += offsetX))
+        laid.edges.forEach(e => (e.data.points = e.data.points.map(p => ({ ...p, x: p.x + offsetX }))))
         result.nodes.push(...laid.nodes)
         result.edges.push(...laid.edges)
         offsetX += laid.width + CATEGORY_GAP

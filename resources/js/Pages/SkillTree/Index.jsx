@@ -7,6 +7,7 @@ import CategoryModal from '../../Components/CategoryModal'
 import CategoryNode from '../../Components/CategoryNode'
 import LibraryModal from '../../Components/LibraryModal'
 import { CategoryPanel, SkillPanel } from '../../Components/NodePanel'
+import RoutedEdge from '../../Components/RoutedEdge'
 import SearchPalette from '../../Components/SearchPalette'
 import SkillNode from '../../Components/SkillNode'
 import { GameButton, Hex } from '../../Components/ui'
@@ -15,6 +16,7 @@ import { levelPercent } from '../../lib/progression'
 import { SOUND_PREFERENCE, sounds } from '../../lib/sound'
 
 const nodeTypes = { skill: SkillNode, category: CategoryNode }
+const edgeTypes = { routed: RoutedEdge }
 
 // Canvas colours React Flow needs as plain values (SVG attributes cannot read CSS variables).
 const CANVAS = {
@@ -111,6 +113,7 @@ function Tab({ active, color, onClick, children, progress }) {
 export default function Index({ character, categories, nodes, templates = [] }) {
     const [activeTab, setActiveTab] = useState('all')
     const [selection, setSelection] = useState(null) // { type: 'skill' | 'category', id }
+    const [hovered, setHovered] = useState(null) // React Flow node id
     const [modal, setModal] = useState(null) // { category: Category | null }
     const [libraryOpen, setLibraryOpen] = useState(false)
     const [theme, setTheme] = usePreference('skill-tree.theme', 'dark')
@@ -146,6 +149,9 @@ export default function Index({ character, categories, nodes, templates = [] }) 
         ...n,
         data: { ...n.data, selected: n.id === selectedKey, burst: n.type === 'skill' ? bursts[n.data.node.id] : undefined },
     }))
+
+    // Cross-category links cut through other trees: only show those touching the focused skill.
+    const flowEdges = graph.edges.filter(e => !e.data?.cross || e.data.ends.some(end => end === selectedKey || end === hovered))
 
     const selectedSkill = selection?.type === 'skill' ? nodes.find(n => n.id === selection.id) : null
     const selectedCategory =
@@ -302,9 +308,12 @@ export default function Index({ character, categories, nodes, templates = [] }) 
                             setFlowVersion(v => v + 1)
                         }}
                         nodes={flowNodes}
-                        edges={graph.edges}
+                        edges={flowEdges}
                         nodeTypes={nodeTypes}
+                        edgeTypes={edgeTypes}
                         onNodeClick={onNodeClick}
+                        onNodeMouseEnter={(_, flowNode) => setHovered(flowNode.id)}
+                        onNodeMouseLeave={() => setHovered(null)}
                         onPaneClick={() => setSelection(null)}
                         nodesDraggable={false}
                         nodesConnectable={false}
