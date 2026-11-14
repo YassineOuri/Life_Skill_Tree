@@ -204,4 +204,51 @@ class SkillNodeTest extends TestCase
         $this->patch("/nodes/{$prerequisite->id}/status", ['status' => 'in_progress'])->assertSessionHasNoErrors();
         $this->assertNull($prerequisite->fresh()->completed_at);
     }
+
+    public function test_node_can_be_created_as_a_leaf_of_existing_skills(): void
+    {
+        $goal = SkillNode::factory()->create();
+        $other = SkillNode::factory()->create(['category_id' => $goal->category_id]);
+
+        $this->post('/nodes', [
+            'category_id' => $goal->category_id,
+            'title' => 'Leaf',
+            'prerequisite_ids' => [$other->id],
+            'dependent_ids' => [$goal->id],
+        ])->assertSessionHasNoErrors();
+
+        $leaf = SkillNode::where('title', 'Leaf')->first();
+        $this->assertEquals([$leaf->id], $goal->prerequisites()->pluck('skill_nodes.id')->all());
+        $this->assertEquals([$other->id], $leaf->prerequisites()->pluck('skill_nodes.id')->all());
+    }
+
+    public function test_leaf_cannot_require_a_skill_that_depends_on_its_dependent(): void
+    {
+        $goal = SkillNode::factory()->create();
+        $above = SkillNode::factory()->create(['category_id' => $goal->category_id]);
+        $above->prerequisites()->attach($goal);
+
+        $this->post('/nodes', [
+            'category_id' => $goal->category_id,
+            'title' => 'Leaf',
+            'prerequisite_ids' => [$above->id],
+            'dependent_ids' => [$goal->id],
+        ])->assertSessionHasErrors('dependent_ids');
+
+        $this->assertDatabaseMissing('skill_nodes', ['title' => 'Leaf']);
+    }
+
+    public function test_update_ignores_dependent_ids(): void
+    {
+        $node = SkillNode::factory()->create();
+        $other = SkillNode::factory()->create(['category_id' => $node->category_id]);
+
+        $this->put("/nodes/{$node->id}", [
+            'category_id' => $node->category_id,
+            'title' => 'Renamed',
+            'dependent_ids' => [$other->id],
+        ])->assertSessionHasNoErrors();
+
+        $this->assertCount(0, $other->prerequisites);
+    }
 }

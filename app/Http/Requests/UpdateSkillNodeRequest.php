@@ -9,7 +9,8 @@ class UpdateSkillNodeRequest extends StoreSkillNodeRequest
 {
     public function rules(): array
     {
-        return parent::rules() + [
+        // dependent_ids only applies on creation; dependents are edited from their own form.
+        return array_diff_key(parent::rules(), array_flip(['dependent_ids', 'dependent_ids.*'])) + [
             // Backdating a completion; ignored unless the skill is completed.
             'completed_at' => ['nullable', 'date', 'before_or_equal:today'],
         ];

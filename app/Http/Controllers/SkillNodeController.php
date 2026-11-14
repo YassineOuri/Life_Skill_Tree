@@ -9,16 +9,20 @@ use App\Http\Requests\UpdateSkillNodeRequest;
 use App\Models\SkillNode;
 use App\Services\NodeStatusService;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\DB;
 
 class SkillNodeController extends Controller
 {
     public function store(StoreSkillNodeRequest $request): RedirectResponse
     {
-        $data = $this->attributes($request->safe()->except('prerequisite_ids'));
+        $data = $this->attributes($request->safe()->except(['prerequisite_ids', 'dependent_ids']));
         $data['position'] ??= SkillNode::where('category_id', $data['category_id'])->count();
 
-        $node = SkillNode::create($data + ['status' => NodeStatus::Available]);
-        $node->prerequisites()->sync($request->validated('prerequisite_ids') ?? []);
+        DB::transaction(function () use ($data, $request) {
+            $node = SkillNode::create($data + ['status' => NodeStatus::Available]);
+            $node->prerequisites()->sync($request->validated('prerequisite_ids') ?? []);
+            $node->dependents()->attach($request->validated('dependent_ids') ?? []);
+        });
 
         return back();
     }

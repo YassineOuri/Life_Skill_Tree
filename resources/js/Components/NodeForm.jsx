@@ -7,12 +7,14 @@ import { Field, GameButton, inputClass } from './ui'
 
 /**
  * Create (pass categoryId + prerequisiteIds) or edit (pass node) a skill.
+ * requiredBy: ids of existing skills that will require the new one (adding it as their leaf).
  */
-export default function NodeForm({ node, categoryId, prerequisiteIds = [], nodes, categories, onDone, onCancel }) {
+export default function NodeForm({ node, categoryId, prerequisiteIds = [], requiredBy = [], nodes, categories, onDone, onCancel }) {
     const editing = Boolean(node)
     const { data, setData, transform, post, put, processing, errors } = useForm({
         category_id: node?.category_id ?? categoryId,
         prerequisite_ids: node?.prerequisite_ids ?? prerequisiteIds,
+        dependent_ids: editing ? undefined : requiredBy,
         title: node?.title ?? '',
         description: node?.description ?? '',
         icon: node?.icon ?? '',
@@ -22,8 +24,10 @@ export default function NodeForm({ node, categoryId, prerequisiteIds = [], nodes
         completed_at: node?.completed_at?.slice(0, 10) ?? '',
     })
 
-    // A skill cannot require itself or anything that already requires it.
-    const excluded = editing ? [node.id, ...dependentIds(nodes, node.id)] : []
+    // A skill cannot require itself or anything that already requires it (including, for a new
+    // leaf, the skills it is added under and whatever requires those).
+    const above = editing ? [node.id] : requiredBy
+    const excluded = above.flatMap(id => [id, ...dependentIds(nodes, id)])
     // Any category may provide prerequisites; the skill's own category is listed first.
     const candidates = nodes.filter(n => !excluded.includes(n.id))
     const groups = [...categories]
@@ -34,6 +38,7 @@ export default function NodeForm({ node, categoryId, prerequisiteIds = [], nodes
     const relocks =
         completedEdit &&
         data.prerequisite_ids.some(id => nodes.find(n => n.id === id)?.status !== 'completed')
+    const completedAbove = nodes.filter(n => requiredBy.includes(n.id) && n.status === 'completed')
 
     const togglePrerequisite = id =>
         setData(
@@ -54,7 +59,7 @@ export default function NodeForm({ node, categoryId, prerequisiteIds = [], nodes
                 <input className={inputClass} value={data.title} onChange={e => setData('title', e.target.value)} autoFocus />
             </Field>
 
-            <Field label="Prerequisites" error={errors.prerequisite_ids ?? errors['prerequisite_ids.0']}>
+            <Field label="Prerequisites" error={errors.prerequisite_ids ?? errors['prerequisite_ids.0'] ?? errors.dependent_ids}>
                 <div className="max-h-44 space-y-0.5 overflow-y-auto border border-ink-600 bg-ink-950/80 p-1.5">
                     {groups.length === 0 && <p className="px-1 py-1 text-sm text-parchment-dim">No other skills yet.</p>}
                     {groups.map(({ category, skills }) => (
@@ -90,6 +95,11 @@ export default function NodeForm({ node, categoryId, prerequisiteIds = [], nodes
                         </div>
                     ))}
                 </div>
+                {completedAbove.length > 0 && (
+                    <span className="mt-1 block text-xs font-semibold text-amber-500">
+                        {completedAbove.map(n => n.title).join(', ')} will show as locked until this new skill is completed (it stays completed).
+                    </span>
+                )}
                 {relocks && (
                     <span className="mt-1 block text-xs font-semibold text-amber-500">
                         This skill will show as locked until the new prerequisites are completed (it stays completed).

@@ -1,5 +1,5 @@
 import { router } from '@inertiajs/react'
-import { CalendarDays, ExternalLink, Lock, Pencil, Plus, Trash2, X } from 'lucide-react'
+import { ArrowDownToLine, ArrowUpFromLine, CalendarDays, ExternalLink, Lock, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { useState } from 'react'
 import { DEADLINE_COLORS, deadlineLabel, deadlineState } from '../lib/deadlines'
 import { getIcon } from '../lib/icons'
@@ -104,13 +104,14 @@ export function SkillPanel({ node, category, categories, nodes, onClose, onSelec
                     <SectionTitle>Edit skill</SectionTitle>
                     <NodeForm key={`edit-${node.id}`} node={node} nodes={nodes} categories={categories} onDone={() => setMode('view')} onCancel={() => setMode('view')} />
                 </>
-            ) : mode === 'add' ? (
+            ) : mode === 'parent' || mode === 'leaf' ? (
                 <>
-                    <SectionTitle>New branch</SectionTitle>
+                    <SectionTitle>{mode === 'parent' ? `New parent (requires ${node.title})` : `New leaf (required by ${node.title})`}</SectionTitle>
                     <NodeForm
-                        key={`add-${node.id}`}
+                        key={`${mode}-${node.id}`}
                         categoryId={node.category_id}
-                        prerequisiteIds={[node.id]}
+                        prerequisiteIds={mode === 'parent' ? [node.id] : []}
+                        requiredBy={mode === 'leaf' ? [node.id] : []}
                         nodes={nodes}
                         categories={categories}
                         onDone={() => setMode('view')}
@@ -223,8 +224,11 @@ export function SkillPanel({ node, category, categories, nodes, onClose, onSelec
                     <section>
                         <SectionTitle>Actions</SectionTitle>
                         <div className="flex flex-wrap gap-2">
-                            <GameButton onClick={() => setMode('add')}>
-                                <Plus size={15} /> Branch
+                            <GameButton onClick={() => setMode('parent')} title="New skill above this one, that requires it">
+                                <ArrowUpFromLine size={15} /> Add parent
+                            </GameButton>
+                            <GameButton onClick={() => setMode('leaf')} title="New skill below this one, that it requires">
+                                <ArrowDownToLine size={15} /> Add leaf
                             </GameButton>
                             <GameButton onClick={() => setMode('edit')}>
                                 <Pencil size={15} /> Edit
