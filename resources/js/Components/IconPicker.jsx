@@ -1,11 +1,12 @@
 import { ChevronDown } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { getIcon, ICON_GROUPS, isKnownIcon } from '../lib/icons'
+import { ALL_ICON_NAMES, getIcon, ICON_GROUPS, isCuratedIcon, isKnownIcon } from '../lib/icons'
 import { inputClass } from './ui'
 
 const PANEL_WIDTH = 288
 const PANEL_HEIGHT = 340
+const MAX_EXTRA_RESULTS = 84
 
 /**
  * Fixed position under (or above) the button. The panel is portalled to <body> because
@@ -19,7 +20,10 @@ function panelPosition(button) {
     return { left, top }
 }
 
-/** Button showing the current icon; opens a filterable, grouped grid of the curated icons. */
+/**
+ * Button showing the current icon; opens a filterable, grouped grid of the curated icons.
+ * Typing also searches the full lucide set (lazy-loaded), listed under "More icons".
+ */
 export default function IconPicker({ value, onChange, color = '#dcb85c' }) {
     const [open, setOpen] = useState(false)
     const [filter, setFilter] = useState('')
@@ -48,6 +52,14 @@ export default function IconPicker({ value, onChange, color = '#dcb85c' }) {
     const groups = Object.entries(ICON_GROUPS)
         .map(([group, icons]) => [group, Object.entries(icons).filter(([name]) => !query || name.includes(query) || group.toLowerCase().includes(query))])
         .filter(([, icons]) => icons.length)
+    if (query.length >= 2) {
+        const words = query.split(/\s+/)
+        const matches = ALL_ICON_NAMES.filter(name => !isCuratedIcon(name) && words.every(w => name.includes(w)))
+        if (matches.length) {
+            const label = matches.length > MAX_EXTRA_RESULTS ? `More icons (${MAX_EXTRA_RESULTS} of ${matches.length})` : 'More icons'
+            groups.push([label, matches.slice(0, MAX_EXTRA_RESULTS).map(name => [name, getIcon(name)])])
+        }
+    }
 
     const pick = name => {
         onChange(name)
@@ -85,6 +97,9 @@ export default function IconPicker({ value, onChange, color = '#dcb85c' }) {
                     />
                     <div className="max-h-64 overflow-y-auto pr-1">
                         {groups.length === 0 && <p className="p-2 text-sm text-parchment-dim">No icon matches.</p>}
+                        {query.length < 2 && (
+                            <p className="mb-2 px-1 text-xs text-parchment-dim">Type to search all {ALL_ICON_NAMES.length} icons.</p>
+                        )}
                         {groups.map(([group, icons]) => (
                             <div key={group} className="mb-2">
                                 <p className="mb-1 font-display text-[10px] font-bold uppercase tracking-[0.2em] text-gold-600">{group}</p>

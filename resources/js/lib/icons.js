@@ -1,7 +1,11 @@
 /**
- * Curated icon set. Only these icons are bundled (importing lucide's full `icons` map
- * would ship ~2000 of them). Names are lucide kebab-case names, as stored in the database.
+ * Curated icon set, bundled for instant rendering and browsing. Every other lucide icon is
+ * also usable: it is lazy-loaded by name through lucide's DynamicIcon (one small chunk per
+ * icon), so the full ~2000-icon set is never shipped up front. Names are lucide kebab-case
+ * names, as stored in the database.
  */
+import { createElement } from 'react'
+import { DynamicIcon, iconNames } from 'lucide-react/dynamic'
 import {
     Activity,
     Apple,
@@ -202,9 +206,28 @@ export const ICON_GROUPS = {
 
 const ICONS = Object.assign({}, ...Object.values(ICON_GROUPS))
 
-export const isKnownIcon = name => Boolean(name && ICONS[name.trim()])
+/** Every lucide icon name, curated ones included. */
+export const ALL_ICON_NAMES = iconNames
+const ALL = new Set(iconNames)
+
+export const isCuratedIcon = name => Boolean(name && ICONS[name.trim()])
+export const isKnownIcon = name => Boolean(name && (ICONS[name.trim()] || ALL.has(name.trim())))
+
+// One stable wrapper component per lazy icon, so re-renders don't remount (and refetch) it.
+const lazyIcons = new Map()
+function lazyIcon(name) {
+    if (!lazyIcons.has(name)) {
+        const LazyIcon = props => createElement(DynamicIcon, { name, fallback: () => createElement(Sparkles, props), ...props })
+        LazyIcon.displayName = `LazyIcon(${name})`
+        lazyIcons.set(name, LazyIcon)
+    }
+    return lazyIcons.get(name)
+}
 
 /** Resolve an icon from its kebab-case name ("heart-pulse"), falling back to Sparkles. */
 export function getIcon(name) {
-    return (name && ICONS[name.trim()]) || Sparkles
+    const key = name?.trim()
+    if (!key) return Sparkles
+    if (ICONS[key]) return ICONS[key]
+    return ALL.has(key) ? lazyIcon(key) : Sparkles
 }
